@@ -1,3 +1,7 @@
+/*
+ * C++ program to calculate pi using Machin-like formula using libmpfr-dev and std::thread
+ */
+
 #include <stdio.h>
 #include <thread>
 #include <mutex>
@@ -9,8 +13,6 @@ unsigned long precision = 100000;
 
 mpfr_t one;
 mpfr_t pi;
-int step = 0;
-struct timespec tim;
 
 int nCA[7] = { 183, 32, -68, 12, -100, -12, 12};
 
@@ -23,9 +25,11 @@ void *calcThread(int i)
 	mpfr_t x;
 	mpfr_t sum;
 
+	// This needs to go first!
 	mpfr_set_default_prec(precision);
+
 	mpfr_inits(sum, NULL);
-	mpfr_set_si(sum, 0, MPFR_RNDN);
+	mpfr_set_ui(sum, 0, MPFR_RNDN);
 
 	mpfr_init_set_str(x, (char *)pszCB[i], 10, MPFR_RNDN); 
 	mpfr_atan2(sum, one, x, MPFR_RNDN);
@@ -41,6 +45,7 @@ void *calcThread(int i)
 		else
   			mpfr_sub(pi, pi, sum, MPFR_RNDN);
 	}
+
 	mpfr_clears(sum, x, NULL);
 
     	mpfr_free_cache();
@@ -71,34 +76,36 @@ void print_val(mpfr_t *ptVal)
 int main(int argc, char *argv[])
 { 
 	std::thread threadArray[7];
+
  	if (argc == 2)
 	{
 		sscanf(argv[1], "%lu", &precision);
 	}
 
 	precision *= 3.35;
-	// printf("Precision: %ld\n", precision);
-	tim.tv_sec = 0;
-	tim.tv_nsec = 10000000;
 
 	mpfr_set_default_prec(precision);
 	mpfr_inits(one, pi, NULL);
 	mpfr_set_si(pi, 0, MPFR_RNDN);
 	mpfr_set_si(one, 1, MPFR_RNDN);
-	// printf("Hello\n");
 
+	// Start threads to calculate all seven parts
 	for(int i=0; i< 7; i++)
 	{
 		threadArray[i] = std::thread(calcThread,i);
 	}
 
 
+	// Wait for all seven threads to finish
 	for(int i=0; i< 7; i++)
 	{
 		threadArray[i].join();
 	}
+
+	// Calculate the final result
 	mpfr_mul_ui(pi, pi, 4, MPFR_RNDN);
 
+	// Print the value
 	print_val(&pi);
 
 }
