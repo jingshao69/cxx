@@ -1,5 +1,10 @@
 #include <stdio.h>
 #include <time.h>
+#include <x86intrin.h>
+
+typedef unsigned char uint8_t;
+typedef unsigned short uint16_t;
+typedef unsigned int uint32_t;
 
 unsigned short checksum1(const char *buf, unsigned int size)
 {
@@ -82,6 +87,62 @@ unsigned short checksum2(const char *buf, unsigned int size)
 	return ~t3;
 }
 
+static inline uint32_t __rte_raw_cksum(const void *buf, size_t len, uint32_t sum)
+{
+        /* workaround gcc strict-aliasing warning */
+        const unsigned short *u16 = (const unsigned short *) buf;
+
+        while (len >= (sizeof(*u16) * 4)) {
+                sum += u16[0];
+                sum += u16[1];
+                sum += u16[2];
+                sum += u16[3];
+                len -= sizeof(*u16) * 4;
+                u16 += 4;
+        }
+        while (len >= sizeof(*u16)) {
+                sum += *u16;
+                len -= sizeof(*u16);
+                u16 += 1;
+        }
+
+        /* if length is in odd bytes */
+        if (len == 1)
+                sum += *((const uint8_t *)u16);
+
+        return sum;
+}
+
+static inline uint16_t
+__rte_raw_cksum_reduce(uint32_t sum)
+{
+        sum = ((sum & 0xffff0000) >> 16) + (sum & 0xffff);
+        sum = ((sum & 0xffff0000) >> 16) + (sum & 0xffff);
+        return (uint16_t)sum;
+}
+
+/**
+ * Process the non-complemented checksum of a buffer.
+ *
+ * @param buf
+ *   Pointer to the buffer.
+ * @param len
+ *   Length of the buffer.
+ * @return
+ *   The non-complemented checksum.
+ */
+static inline uint16_t
+rte_raw_cksum(const void *buf, size_t len)
+{
+        uint32_t sum;
+
+        sum = __rte_raw_cksum(buf, len, 0);
+        return ~(__rte_raw_cksum_reduce(sum));
+}
+
+
+
+
 typedef unsigned short (*CSUM_FUNC)(const char *buf, unsigned int size);
 
 extern unsigned short checksum5(const char *buf, unsigned int size);
@@ -97,6 +158,7 @@ typedef struct
 algo_desc_t CSUM_FUNC_TABLE[] = {
 	{"checksum1", checksum1},
 	{"checksum2", checksum2},
+	{"rte_raw_cksum", rte_raw_cksum},
 	{"checksum5", checksum5},
 	{"checksum6", checksum6},
 	{"checksum14", checksum14},
@@ -124,6 +186,17 @@ void time_func(CSUM_FUNC func, const char *buf, unsigned int size)
 
 int main()
 {
+        for (int i=0; i< 1024; i++)
+        {
+                 buf3[i] = (char) i*i;
+        }
+
+	for (int i=0; i< NUM_CSUM_FUNC; i++)
+	{
+                unsigned short cksum = CSUM_FUNC_TABLE[i].func(buf3, 1024);
+                printf("%s: 0x%04x\n", CSUM_FUNC_TABLE[i].desc, cksum);
+        }
+
 	for (int i=0; i< NUM_CSUM_FUNC; i++)
 	{
 		printf("%s:\n", CSUM_FUNC_TABLE[i].desc);
