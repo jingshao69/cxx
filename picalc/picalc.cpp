@@ -50,6 +50,7 @@ void *calcThread(int i)
 
     	mpfr_free_cache();
 		
+        return NULL;
 }
 
 void print_val(mpfr_t *ptVal)
