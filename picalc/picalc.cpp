@@ -3,6 +3,7 @@
  */
 
 #include <stdio.h>
+#include <math.h>
 #include <thread>
 #include <mutex>
 #include <mpfr.h>
